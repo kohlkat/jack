@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "dijkstra": "^0.0.1",
+    "graphology": "^0.25.1",
+    "xrpl-client": "^2.0.0"
+  }
+}

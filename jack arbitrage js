@@ -1,0 +1,59 @@
+const XRPLClient = require('xrpl-client');
+const dijkstra = require('dijkstra');
+
+// Replace XRP_ADDRESS and XRP_SECRET_KEY with your own XRP address and secret key
+const XRP_ADDRESS = "XRP_ADDRESS";
+const XRP_SECRET_KEY = "XRP_SECRET_KEY";
+
+// Replace CURRENCIES with a list of the currencies that you want to include in your arbitrage analysis
+const CURRENCIES = ["USD", "EUR", "JPY"];
+
+// Create a function to retrieve the exchange rates for a given currency pair
+const getExchangeRate = (currencyPair) => {
+  return XRPLClient.getOrderBook(currencyPair).then((orderBook) => {
+    // Retrieve the best ask and bid prices from the order book
+    const bestAskPrice = orderBook.asks[0].price;
+    const bestBidPrice = orderBook.bids[0].price;
+
+    // Calculate the exchange rate as the ratio of the best ask and bid prices
+    return bestAskPrice / bestBidPrice;
+  });
+};
+
+// Retrieve the current exchange rates
+Promise.all(CURRENCIES.map((fromCurrency) => {
+  return Promise.all(CURRENCIES.map((toCurrency) => {
+    if (fromCurrency === toCurrency) {
+      return 1;
+    } else {
+      return getExchangeRate(`${fromCurrency}/${toCurrency}`);
+    }
+  })).then((rates) => {
+    return [fromCurrency, rates];
+  });
+})).then((exchangeRates) => {
+  // Build a bellman-ford negative weight graph to represent the arbitrage opportunities
+  const graph = {};
+
+  for (const [fromCurrency, rates] of exchangeRates) {
+    graph[fromCurrency] = {};
+    for (const [i, rate] of rates.entries()) {
+      const toCurrency = CURRENCIES[i];
+      graph[fromCurrency][toCurrency] = -Math.log(rate);
+    }
+  }
+
+  // Find the best arbitrage opportunity
+  const path = dijkstra.shortestPath(graph, 'USD', 'USD');
+
+  const profit = Math.exp(-path.distance);
+
+  // Execute the arbitrage opportunity
+  XRPLClient.executeArbitrage(path, profit, XRP_ADDRESS, XRP_SECRET_KEY).then(() => {
+    console.log('Arbitrage opportunity executed successfully');
+  }).catch((error) => {
+    console.error('Error executing arbitrage opportunity:', error);
+  });
+}).catch((error) => {
+  console.error('Error retrieving exchange rates:', error);
+});
