@@ -1,0 +1,54 @@
+import com.xrpl.xrpl.XRPL;
+import com.xrpl.xrpl.model.AccountInfo;
+import com.xrpl.xrpl.model.Currency;
+import com.xrpl.xrpl.model.Price;
+import com.xrpl.xrpl.model.Transaction;
+
+import java.util.List;
+
+public class Main {
+  public static void main(String[] args) {
+    // Create an XRPL instance with the default test net URL.
+    XRPL xrpl = XRPL.newBuilder().build();
+
+    // Get the list of supported currencies.
+    List<Currency> currencies = xrpl.getCurrencies();
+
+    // Initialize a Bellman-Ford graph with the number of vertices equal to the number of currencies.
+    int numCurrencies = currencies.size();
+    int[][] graph = new int[numCurrencies][numCurrencies];
+
+    // Initialize the graph with the prices of each currency relative to XRP.
+    for (int i = 0; i < numCurrencies; i++) {
+      Currency currency = currencies.get(i);
+      String currencyCode = currency.getCode();
+
+      // Get the price of the currency relative to XRP.
+      Price price = xrpl.getPrice(currencyCode, "XRP");
+      double priceInXRP = price.getPrice();
+
+      // Add the price to the graph as a weighted edge.
+      for (int j = 0; j < numCurrencies; j++) {
+        graph[i][j] = (int) (priceInXRP * 100);
+      }
+    }
+
+    // Use the Bellman-Ford algorithm to detect negative weight cycles in the graph.
+    boolean hasNegativeCycle = bellmanFord(graph, numCurrencies);
+    if (hasNegativeCycle) {
+      System.out.println("The graph contains a negative weight cycle.");
+    } else {
+      System.out.println("The graph does not contain a negative weight cycle.");
+    }
+
+    // Get the secret key and address of the account you want to sign a transaction for.
+String secretKey = "your secret key here";
+String address = "your address here";
+
+// Create a new transaction.
+Transaction transaction = new Transaction.Builder()
+    .setAccount(address)
+    .build();
+
+// Sign the transaction with the secret key.
+transaction = xrpl.sign(transaction, secretKey);
